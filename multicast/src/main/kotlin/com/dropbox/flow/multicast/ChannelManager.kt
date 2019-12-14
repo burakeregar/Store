@@ -49,6 +49,8 @@ internal class ChannelManager<T>(
      * it will receive values as well.
      */
     private val piggybackingDownstream: Boolean = false,
+
+    private val keepUpstreamAlive: Boolean = false,
     /**
      * Called when a value is dispatched
      */
@@ -183,7 +185,7 @@ internal class ChannelManager<T>(
             }
             if (index >= 0) {
                 channels.removeAt(index)
-                if (channels.isEmpty()) {
+                if (!keepUpstreamAlive && channels.isEmpty()) {
                     producer?.cancelAndJoin()
                 }
             }

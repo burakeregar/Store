@@ -20,8 +20,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -162,6 +165,92 @@ class ChannelManagerTest {
             assertThat(collection1.await()).isEqualTo(listOf("a", "b"))
             assertThat(collection2.await()).isEqualTo(listOf("a", "b"))
         }
+
+    @Test
+    fun `GIVEN no keepUpstreamAlive WHEN a add two non overlapping downstreams THEN registers only once`() =
+        scope.runBlockingTest {
+            val upstreamCreateCount =
+                `consume two non-overlapping downstreams and count upstream creations`(
+                    keepUpstreamAlive = false
+                )
+            assertThat(upstreamCreateCount).isEqualTo(2)
+        }
+
+    @Test
+    fun `GIVEN keepUpstreamAlive WHEN a add two non overlapping downstreams THEN registers only once`() =
+        scope.runBlockingTest {
+            val upstreamCreateCount =
+                `consume two non-overlapping downstreams and count upstream creations`(
+                    keepUpstreamAlive = true
+                )
+            assertThat(upstreamCreateCount).isEqualTo(1)
+        }
+
+    private suspend fun `consume two non-overlapping downstreams and count upstream creations`(
+        keepUpstreamAlive: Boolean
+    ) = coroutineScope {
+        // upstream that tracks creates and can be emitted to on demand
+        var upstreamCreateCount = 0
+        val upstreamChannel = Channel<String>(Channel.UNLIMITED)
+        val upstream = flow {
+            upstreamCreateCount++
+            for (message in upstreamChannel) {
+                emit(message)
+            }
+        }
+
+        // create a manager with this specific upstream
+        val manager = ChannelManager(
+            scope,
+            0,
+            onEach = {},
+            keepUpstreamAlive = keepUpstreamAlive,
+            upstream = upstream
+        )
+
+        // subscribe with fist downstream
+        val downstream1 =
+            Channel<Dispatch.Value<String>>(Channel.UNLIMITED)
+        manager.addDownstream(downstream1)
+        val s1 = async {
+            try {
+                downstream1.consumeAsFlow()
+                    .first().let {
+                        it.markDelivered()
+                        it.value
+                    }
+            } finally {
+                manager.removeDownstream(downstream1)
+            }
+        }
+
+        // get value and make sure first downstream is closed
+        upstreamChannel.send("a")
+        assertThat(s1.await()).isEqualTo("a")
+        assertThat(downstream1.isClosedForReceive)
+
+        // add second downstream
+        val downstream2 =
+            Channel<Dispatch.Value<String>>(Channel.UNLIMITED)
+        manager.addDownstream(downstream2)
+        val s2 = async {
+            try {
+                downstream2.consumeAsFlow()
+                    .first().let {
+                        it.markDelivered()
+                        it.value
+                    }
+            } finally {
+                manager.removeDownstream(downstream2)
+            }
+        }
+
+        // get second value
+        upstreamChannel.send("b")
+        assertThat(s2.await()).isEqualTo("b")
+
+        return@coroutineScope upstreamCreateCount
+    }
 }
 
 private class TestException : Exception()
