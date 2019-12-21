@@ -1,0 +1,43 @@
+apply plugin: 'jacoco'
+
+jacoco {
+    toolVersion = "0.8.2"
+}
+
+project.afterEvaluate {
+    tasks.create(name: "jacocoTestCoverage", type: JacocoReport, dependsOn: "test") {
+
+        group = "Reporting"
+        description = "Generate JaCoCo coverage reports"
+
+        reports {
+            xml.enabled = true
+            xml.destination = file("${buildDir}/reports/coverage.xml")
+            html.enabled = true
+            html.destination = file("${buildDir}/reports/coverage.html")
+        }
+
+        def excludes = [
+                '**/R.class',
+                '**/R$*.class',
+                '**/BuildConfig.*',
+                '**/Manifest*.*',
+                '**/*$ViewInjector*.*',
+                '**/*$ViewBinder*.*',
+                '**/injection/components/*.*',
+                '**/*Provider*.class',
+                '**/*_MembersInjector.class',
+                '**/*Lambda*.*',
+                '**/*_Factory.class'
+        ]
+        def tree = fileTree(dir: "${buildDir}/classes", excludes: excludes)
+
+        classDirectories.from([tree])
+
+        sourceDirectories.from([
+                "${project.projectDir}/src/main/java",
+                "${project.projectDir}/src/main/kotlin"
+        ])
+        executionData.from(fileTree(dir: project.projectDir, includes: ['**/*.exec', '**/*.ec']))
+    }
+}

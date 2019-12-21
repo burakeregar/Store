@@ -15,3 +15,4 @@ buildscript {
 }
 
 apply from: rootProject.file("gradle/maven-push.gradle")
+apply from: rootProject.file("gradle/jacoco.gradle")
