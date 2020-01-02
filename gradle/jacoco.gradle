@@ -1,11 +1,11 @@
 apply plugin: 'jacoco'
 
 jacoco {
-    toolVersion = "0.8.2"
+    toolVersion = "0.8.5"
 }
 
 project.afterEvaluate {
-    tasks.create(name: "jacocoTestCoverage", type: JacocoReport, dependsOn: "test") {
+    tasks.create(name: "jacocoTestCoverage", type: JacocoReport) {
 
         group = "Reporting"
         description = "Generate JaCoCo coverage reports"
@@ -30,9 +30,12 @@ project.afterEvaluate {
                 '**/*Lambda*.*',
                 '**/*_Factory.class'
         ]
-        def tree = fileTree(dir: "${buildDir}/classes", excludes: excludes)
+        def javaTree = fileTree(dir: "${buildDir}/classes/java", excludes: excludes)
+        def kotlinTree = fileTree(dir: "${buildDir}/classes/kotlin", excludes: excludes)
+        def debugTree = fileTree(dir: "${buildDir}/intermediates/classes/debug", excludes: excludes)
+        def kotlinDebugTree = fileTree(dir: "${buildDir}/tmp/kotlin-classes/debug", excludes: excludes)
 
-        classDirectories.from([tree])
+        classDirectories.from([javaTree, kotlinTree, debugTree, kotlinDebugTree])
 
         sourceDirectories.from([
                 "${project.projectDir}/src/main/java",
